@@ -1,10 +1,11 @@
 #include "m_vector.hpp"
 #include <iostream>
+#include <string>
 
 using my::vector;
 
 template<typename T>
-void print(const vector<T>& v, char* s = "") {
+void print(const vector<T>& v, std::string s = "") {
     std::cout << s;
     std::cout << "元素：";
     for (std::size_t i = 0; i < v.size(); ++i)
