@@ -12,25 +12,17 @@ public:
     ThreadPool(int num)
         : m_thread_nums(num)
     {
-        for (int i = 0; i < num; ++i) {  
-            // 构造时创建一定数量的线程
-            m_threads.emplace_back([this]() {
-                // 每个线程都不断从 m_tasks 中取任务执行，直到 m_stop
-                while (1) {
-                    std::function<void ()> task;
-                    {
-                        std::unique_lock<std::mutex> lock(m_mtx);   // 条件变量要搭配能自由上锁解锁的类
-                        m_cv.wait(lock, [this]() { return !m_tasks.empty() || m_stop; });
-                        if (m_tasks.empty() && m_stop) {
-                            return;
-                        }
-
-                        task = std::move(m_tasks.front());  // 使用移动提高性能
-                        m_tasks.pop();
-                    }
-                    task();
-                }
-            });
+        try {
+            for (int i = 0; i < m_thread_nums; ++i) {  
+                // 构造时创建一定数量的线程
+                m_threads.emplace_back([this] { workloop(); });
+            }
+        }
+        catch(...) {
+            m_thread_nums = m_threads.size();  // 如果创建线程时遇到了问题
+            if (m_thread_nums == 0) {
+                throw std::runtime_error("Failed to create any thread");
+            }
         }
     }
 
@@ -46,13 +38,35 @@ public:
     }
 
     ThreadPool(const ThreadPool&) = delete;
-    ThreadPool(const ThreadPool&&) = delete;
+    ThreadPool(ThreadPool&&) = delete;
+
+    // 每个线程都执行的循环
+    void workloop() {
+        // 每个线程都不断从 m_tasks 中取任务执行，直到 m_stop
+        while (1) {
+            std::unique_lock<std::mutex> lock(m_mtx);   // 条件变量要搭配能自由上锁解锁的类
+            m_cv.wait(lock, [this]() { return !m_tasks.empty() || m_stop; });
+            if (m_tasks.empty() && m_stop) {
+                return;  // 停止后仍然会完成队列中没有完成的任务
+            }
+
+            std::function<void ()> task = std::move(m_tasks.front());  // 使用移动提高性能
+            m_tasks.pop();
+            lock.unlock();
+
+            task();
+        }
+    }
 
     template<typename Func, typename... Args>
     auto add_task(Func&& func, Args&&... args) 
         -> std::future<std::invoke_result_t<Func, Args...>>   // 返回类型复杂时用这种方式写
     {
         using return_type = std::invoke_result_t<Func, Args...>;  // 函数返回类型
+
+        if (m_stop) {
+            throw std::runtime_error("ThreadPool is already stopped!");
+        }
 
         /* C++ 20 写法，Lambda 可以捕获模板参数包
         auto task_ptr = std::make_shared<std::packaged_task<return_type()>>( 
@@ -87,6 +101,8 @@ public:
         m_cv.notify_one();
         return task_ptr->get_future();
     }
+
+    int threads_nums() { return m_thread_nums; }
 
 private:
     int m_thread_nums;
