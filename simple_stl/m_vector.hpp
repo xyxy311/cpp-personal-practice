@@ -2,11 +2,13 @@
 #define MY_VECTOR_HPP
 
 #include <initializer_list>
-#include <memory>
+#include <utility>    // std::forward ...
+#include <algorithm>   // std::max
+#include "m_allocator.hpp"
 
-namespace my {
+namespace my_simple_stl {
 
-template<typename T, typename Allocator = std::allocator<T>>
+template<typename T, typename Allocator = my_simple_stl::allocator<T>>
 class vector {
 public:
     // 成员类型
@@ -234,10 +236,10 @@ private:
     T* m_data = nullptr;   // C++11：就地初始化
     size_type m_size = 0;
     size_type m_capacity = 0;
-    std::allocator<T> m_allocator;
+    allocator_type m_allocator;
 };
 
-} // namespace my
+} // namespace my_simple_stl
 
 
 #endif

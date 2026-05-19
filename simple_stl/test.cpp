@@ -2,7 +2,7 @@
 #include <iostream>
 #include <string>
 
-using my::vector;
+using my_simple_stl::vector;
 
 template<typename T>
 void print(const vector<T>& v, std::string s = "") {
